@@ -31,10 +31,7 @@ El objetivo es simple: todos reciben una palabra secreta menos uno (el Impostor)
 
 | Configuración | Carta (Peek Mode) | Votación |
 |:---:|:---:|:---:|
-|<img width="1080" height="2400" alt="image" src="https://github.com/user-attachments/assets/a5cbadc3-b827-4130-bfeb-7f5a30194561" />
- | <img width="385" height="831" alt="image" src="https://github.com/user-attachments/assets/3ee9aaae-f417-46dd-b111-1d617938d2a8" />
- | <img width="374" height="773" alt="image" src="https://github.com/user-attachments/assets/d6161719-1909-4377-9a6f-129c5fce75f4" />
- |
+|<img width="250" height="2400" alt="image" src="https://github.com/user-attachments/assets/a5cbadc3-b827-4130-bfeb-7f5a30194561" /> | <img width="250" height="2400" alt="image" src="https://github.com/user-attachments/assets/3ee9aaae-f417-46dd-b111-1d617938d2a8" /> | <img width="250" height="2400" alt="image" src="https://github.com/user-attachments/assets/d6161719-1909-4377-9a6f-129c5fce75f4" /> |
 
 
 ## 🚀 Instalación y Uso
