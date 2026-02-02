@@ -28,6 +28,8 @@ class WordRepository(private val context: Context) {
         return cachedPacks
     }
 
+    // --- GESTIÓN DE PALABRAS Y PACKS ---
+
     /**
      * Guarda una nueva palabra en un pack y actualiza el archivo JSON
      */
@@ -55,40 +57,127 @@ class WordRepository(private val context: Context) {
     }
 
     /**
-     * Devuelve una palabra aleatoria del pack seleccionado
+     * Borra un pack completo
      */
-    fun getSecretWord(packId: String): Pair<String, String>? {
-        val pack = cachedPacks.find { it.id == packId } ?: return null
-        if (pack.words.isEmpty()) return null
+    fun deletePack(packId: String) {
+        cachedPacks.removeAll { it.id == packId }
+        savePacksToInternalStorage()
+        // Opcional: Borrar también su historial de SharedPreferences para no dejar basura
+        clearHistory(packId)
+    }
 
-        val history = getHistory(packId)
-        // Filtramos las palabras que no estén en el historial
-        val candidates = pack.words.filter { !history.contains(it.word) }
+    /**
+     * Borra una palabra específica de un pack
+     */
+    fun deleteWordFromPack(packId: String, wordToDelete: String) {
+        val pack = cachedPacks.find { it.id == packId }
+        pack?.let {
+            it.words.removeAll { item -> item.word == wordToDelete }
+            savePacksToInternalStorage()
+        }
+    }
 
+    // --- OBTENCIÓN DE PALABRA SECRETA ---
+
+    /**
+     * MÉTODO CLAVE: Obtiene una palabra aleatoria de UNA LISTA de paquetes.
+     * Gestiona el historial de cada paquete individualmente para que no se repitan.
+     */
+    fun getSecretWordFromPacks(packIds: List<String>): Pair<String, String>? {
+        // 1. Recopilamos todas las palabras candidatas de los packs seleccionados
+        // Triple(Palabra, Categoria, PackId_Original)
+        val candidates = mutableListOf<Triple<String, String, String>>()
+        val allWordsRef = mutableListOf<Triple<String, String, String>>() // Para reseteo si hace falta
+
+        packIds.forEach { id ->
+            val pack = cachedPacks.find { it.id == id }
+            pack?.let { p ->
+                val history = getHistory(id)
+                p.words.forEach { wordItem ->
+                    // Guardamos referencia de todo por si hay que resetear
+                    allWordsRef.add(Triple(wordItem.word, wordItem.category, id))
+
+                    // Si NO está en el historial, es candidata
+                    if (!history.contains(wordItem.word)) {
+                        candidates.add(Triple(wordItem.word, wordItem.category, id))
+                    }
+                }
+            }
+        }
+
+        if (allWordsRef.isEmpty()) return null // No hay palabras en ningún pack seleccionado
+
+        // 2. Si no quedan candidatas (hemos gastado todas las palabras de los packs seleccionados), reseteamos
         val finalCandidates = if (candidates.isEmpty()) {
-            clearHistory(packId)
-            pack.words
+            // Borramos historial SOLO de los packs elegidos
+            packIds.forEach { clearHistory(it) }
+            allWordsRef // Volvemos a tener todas disponibles
         } else {
             candidates
         }
 
+        // 3. Elegimos al azar
         val selection = finalCandidates.random()
-        addToHistory(packId, selection.word)
+        val (word, category, originPackId) = selection
 
-        return selection.word to selection.category
+        // 4. Guardamos en el historial del pack original
+        addToHistory(originPackId, word)
+
+        return word to category
+    }
+
+    /**
+     * Devuelve una palabra aleatoria de un solo pack (Método Legacy, por si acaso)
+     */
+    fun getSecretWord(packId: String): Pair<String, String>? {
+        return getSecretWordFromPacks(listOf(packId))
     }
 
     // --- GESTIÓN DE ARCHIVOS ---
 
     private fun loadPacks() {
         val file = File(context.filesDir, fileName)
+
         if (file.exists()) {
-            // Leemos del archivo local (ediciones del usuario)
-            val jsonString = file.readText()
-            val type = object : TypeToken<MutableList<WordPack>>() {}.type
-            cachedPacks = gson.fromJson(jsonString, type)
+            try {
+                // 1. Cargamos lo que tiene el usuario guardado
+                val jsonString = file.readText()
+                val type = object : TypeToken<MutableList<WordPack>>() {}.type
+                cachedPacks = gson.fromJson(jsonString, type) ?: mutableListOf()
+
+                // 2. CHECK INTELIGENTE: ¿Falta algún pack oficial?
+                // Definimos los oficiales aquí para comprobar
+                val officialPacks = listOf(
+                    Triple("pack_acon", "Pack Acon", "acon.csv"),
+                    Triple("pack_sis", "Pack Sis", "sis.csv"),
+                    Triple("pack_fans", "Pack Fans", "fans.csv"),
+                    Triple("pack_mix", "Mix General", "mix.csv") // <--- El nuevo
+                )
+
+                var hasChanges = false
+                officialPacks.forEach { (id, name, filename) ->
+                    // Si el usuario NO tiene este pack en su JSON, lo importamos
+                    if (cachedPacks.none { it.id == id }) {
+                        val words = readCsvFromAssets(filename)
+                        if (words.isNotEmpty()) {
+                            cachedPacks.add(WordPack(id, name, words.toMutableList()))
+                            hasChanges = true
+                        }
+                    }
+                }
+
+                // 3. Si hemos añadido algo nuevo, guardamos el JSON actualizado
+                if (hasChanges) {
+                    savePacksToInternalStorage()
+                }
+
+            } catch (e: Exception) {
+                // Si falla el JSON, reiniciamos todo
+                importFromAssets()
+                savePacksToInternalStorage()
+            }
         } else {
-            // Primera vez: Importamos de Assets
+            // Primera instalación
             importFromAssets()
             savePacksToInternalStorage()
         }
@@ -105,7 +194,8 @@ class WordRepository(private val context: Context) {
         val initialPacks = listOf(
             Triple("pack_acon", "Pack Acon", "acon.csv"),
             Triple("pack_sis", "Pack Sis", "sis.csv"),
-            Triple("pack_fans", "Pack Fans", "fans.csv")
+            Triple("pack_fans", "Pack Fans", "fans.csv"),
+            Triple("pack_mix", "Mix General", "mix.csv")
         )
 
         initialPacks.forEach { (id, name, file) ->
@@ -136,22 +226,8 @@ class WordRepository(private val context: Context) {
         return items
     }
 
-    fun deletePack(packId: String) {
-        // Filtramos la lista para quitar el pack con ese ID
-        cachedPacks.removeAll { it.id == packId }
-        savePacksToInternalStorage()
-    }
-
-    fun deleteWordFromPack(packId: String, wordToDelete: String) {
-        val pack = cachedPacks.find { it.id == packId }
-        pack?.let {
-            // Borramos la palabra que coincida
-            it.words.removeAll { item -> item.word == wordToDelete }
-            savePacksToInternalStorage()
-        }
-    }
-
     // --- HISTORIAL (POR PREFS) ---
+
     private fun getHistory(packId: String): MutableList<String> {
         val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         val str = prefs.getString("$keyHistory$packId", "") ?: ""
@@ -161,7 +237,9 @@ class WordRepository(private val context: Context) {
     private fun addToHistory(packId: String, word: String) {
         val list = getHistory(packId)
         list.add(word)
+        // Límite de memoria por pack (puedes subirlo si quieres)
         if (list.size > 50) list.removeAt(0)
+
         val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         prefs.edit().putString("$keyHistory$packId", list.joinToString(",")).apply()
     }

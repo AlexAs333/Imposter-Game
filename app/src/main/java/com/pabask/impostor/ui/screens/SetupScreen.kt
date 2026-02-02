@@ -41,7 +41,7 @@ import com.pabask.impostor.R
 import com.pabask.impostor.model.WordPack
 import kotlin.math.max
 
-// COLORES
+// --- PALETA DE COLORES ---
 private val DarkBackground = Color(0xFF0F111A)
 private val CardBackground = Color(0xFF1E202B)
 private val AccentGreen = Color(0xFF00C853)
@@ -59,26 +59,44 @@ fun SetupScreen(
     initialPlayers: List<String>,
     initialPackId: String?,
     initialShowCategory: Boolean,
-    onStartGame: (List<String>, Int, WordPack, Boolean) -> Unit,
+    onStartGame: (List<String>, Int, List<WordPack>, Boolean) -> Unit,
     onCreatePack: (String) -> Unit,
     onAddWord: (WordPack, String, String) -> Unit,
-    // NUEVOS CALLBACKS DE BORRADO
     onDeletePack: (WordPack) -> Unit,
     onDeleteWord: (WordPack, String) -> Unit
 ) {
-    // ... (Estados de selección y validación igual que antes) ...
-    var selectedPack by remember {
-        mutableStateOf(availablePacks.find { it.id == initialPackId } ?: availablePacks.firstOrNull())
-    }
+    // --- GESTIÓN DE SELECCIÓN (CORREGIDO) ---
+    // 1. Usamos mutableStateListOf para que Compose detecte cambios internos (add/remove)
+    val selectedPacks = remember { mutableStateListOf<WordPack>() }
 
-    LaunchedEffect(availablePacks) {
-        if (selectedPack != null) {
-            val updated = availablePacks.find { it.id == selectedPack?.id }
-            // Si el pack seleccionado fue borrado, seleccionamos el primero disponible
-            selectedPack = updated ?: availablePacks.firstOrNull()
+    // 2. Inicializamos la lista UNA VEZ al entrar
+    LaunchedEffect(Unit) {
+        val savedIds = initialPackId?.split(",") ?: emptyList()
+        if (savedIds.isNotEmpty()) {
+            val packsToSelect = availablePacks.filter { savedIds.contains(it.id) }
+            selectedPacks.addAll(packsToSelect)
+        } else {
+            // Si no hay nada guardado, seleccionamos el primero por defecto
+            availablePacks.firstOrNull()?.let { selectedPacks.add(it) }
         }
     }
 
+    // 3. Sincronizamos si availablePacks cambia (ej: borras un pack)
+    LaunchedEffect(availablePacks) {
+        val validPacks = selectedPacks.filter { p -> availablePacks.any { it.id == p.id } }
+
+        // Solo actualizamos si hay discrepancia para evitar bucles
+        if (validPacks.size != selectedPacks.size) {
+            selectedPacks.clear()
+            selectedPacks.addAll(validPacks)
+        }
+
+        if (selectedPacks.isEmpty() && availablePacks.isNotEmpty()) {
+            selectedPacks.add(availablePacks.first())
+        }
+    }
+
+    // --- ESTADOS LOCALES ---
     var showCategory by remember { mutableStateOf(initialShowCategory) }
     var showPackDialog by remember { mutableStateOf(false) }
     var tempName by remember { mutableStateOf("") }
@@ -88,20 +106,31 @@ fun SetupScreen(
         tempName.isNotBlank() && playerNames.any { it.equals(tempName.trim(), ignoreCase = true) }
     }
     val isFull = playerNames.size >= MAX_PLAYERS
+    val canAddPlayer = !isFull && !isDuplicate && tempName.isNotBlank()
 
     var impostorCount by remember { mutableIntStateOf(1) }
     val maxImpostors = max(1, playerNames.size / 2)
+
     if (impostorCount > maxImpostors) impostorCount = maxImpostors
     if (impostorCount < 1) impostorCount = 1
 
     Box(
-        modifier = Modifier.fillMaxSize().background(DarkBackground)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBackground)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            // --- HEADER ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = "IMPOSTOR",
                     fontSize = 28.sp,
@@ -110,10 +139,9 @@ fun SetupScreen(
                     letterSpacing = 2.sp
                 )
             }
-
             Spacer(modifier = Modifier.height(32.dp))
 
-            // JUGADORES
+            // --- JUGADORES ---
             SettingSectionCard(
                 icon = rememberVectorPainter(Icons.Default.Group),
                 iconTint = AccentBlue,
@@ -123,7 +151,12 @@ fun SetupScreen(
                 OutlinedTextField(
                     value = tempName,
                     onValueChange = { tempName = it },
-                    placeholder = { Text(if (isFull) "Sala llena" else "Añadir nombre...", color = TextGray) },
+                    placeholder = {
+                        Text(
+                            text = if (isFull) "Sala llena" else "Añadir nombre...",
+                            color = TextGray
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = isDuplicate,
@@ -136,101 +169,152 @@ fun SetupScreen(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent
                     ),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Done
+                    ),
                     keyboardActions = KeyboardActions(onDone = {
-                        if (!isFull && !isDuplicate && tempName.isNotBlank()) {
+                        if (canAddPlayer) {
                             playerNames.add(tempName.trim())
                             tempName = ""
                         }
                     }),
                     trailingIcon = {
                         IconButton(
-                            enabled = !isFull && !isDuplicate && tempName.isNotBlank(),
+                            enabled = canAddPlayer,
                             onClick = {
-                                if (!isFull && !isDuplicate && tempName.isNotBlank()) {
+                                if (canAddPlayer) {
                                     playerNames.add(tempName.trim())
                                     tempName = ""
                                 }
                             }
                         ) {
-                            Icon(Icons.Default.Add, null, tint = if (!isFull && !isDuplicate && tempName.isNotBlank()) AccentBlue else TextGray)
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = if (canAddPlayer) AccentBlue else TextGray
+                            )
                         }
                     }
                 )
+
                 if (!isDuplicate) Spacer(modifier = Modifier.height(12.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     playerNames.forEach { name ->
                         AssistChip(
                             onClick = { playerNames.remove(name) },
                             label = { Text(name, color = TextWhite) },
-                            trailingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp), tint = TextGray) },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = TextGray
+                                )
+                            },
                             colors = AssistChipDefaults.assistChipColors(containerColor = Color(0xFF2C2F3F)),
                             border = null
                         )
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(12.dp))
 
-            // IMPOSTORES
+            // --- IMPOSTORES ---
             SettingSectionCard(
                 icon = painterResource(id = R.drawable.impostor_icon),
                 iconTint = Color.Unspecified,
                 title = "Impostores",
                 value = ""
             ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text("Cantidad", color = TextGray, fontSize = 14.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularButton(icon = Icons.Default.Remove, color = AccentRed, enabled = impostorCount > 1) { impostorCount-- }
-                        Text(text = "$impostorCount", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp))
-                        CircularButton(icon = Icons.Default.Add, color = AccentRed, enabled = impostorCount < maxImpostors && playerNames.size >= 3) { impostorCount++ }
+                        CircularButton(
+                            icon = Icons.Default.Remove,
+                            color = AccentRed,
+                            enabled = impostorCount > 1
+                        ) { impostorCount-- }
+
+                        Text(
+                            text = "$impostorCount",
+                            color = TextWhite,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+
+                        CircularButton(
+                            icon = Icons.Default.Add,
+                            color = AccentRed,
+                            enabled = impostorCount < maxImpostors && playerNames.size >= 3
+                        ) { impostorCount++ }
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(12.dp))
 
-            // PAQUETE
+            // --- PAQUETES ---
+            val packText = when (selectedPacks.size) {
+                0 -> "Seleccionar"
+                1 -> selectedPacks.first().displayName
+                else -> "${selectedPacks.size} seleccionados"
+            }
             SettingSectionCard(
                 icon = painterResource(id = R.drawable.paquete_icon),
                 iconTint = Color(0xFFFFC107),
-                title = "Paquete",
-                value = selectedPack?.displayName ?: "Seleccionar",
+                title = "Paquetes",
+                value = packText,
                 showArrow = true,
                 onClick = { showPackDialog = true }
             ) { }
-
             Spacer(modifier = Modifier.height(12.dp))
 
-            // OPCIONES
+            // --- OPCIONES ---
             SettingSectionCard(
                 icon = painterResource(id = R.drawable.llave_inglesa_icon),
                 iconTint = AccentGreen,
                 title = "Opciones",
                 value = ""
             ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text("Mostrar Categoría", color = TextWhite, fontSize = 16.sp)
                     Switch(
                         checked = showCategory,
                         onCheckedChange = { showCategory = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = TextWhite, checkedTrackColor = AccentGreen, uncheckedThumbColor = TextGray, uncheckedTrackColor = CardBackground)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = TextWhite,
+                            checkedTrackColor = AccentGreen,
+                            uncheckedThumbColor = TextGray,
+                            uncheckedTrackColor = CardBackground
+                        )
                     )
                 }
             }
             Spacer(modifier = Modifier.height(100.dp))
         }
 
-        // DIÁLOGO SELECCIÓN
+        // --- DIÁLOGOS Y BOTÓN FLOTANTE ---
         if (showPackDialog) {
             PackSelectionDialog(
                 availablePacks = availablePacks,
-                currentPack = selectedPack,
-                onPackSelected = { pack ->
-                    selectedPack = pack
-                    showPackDialog = false
+                selectedPacks = selectedPacks,
+                onSelectionChanged = { updatedList ->
+                    // Al ser mutableStateListOf, limpiar y añadir dispara la animación del tick al instante
+                    selectedPacks.clear()
+                    selectedPacks.addAll(updatedList)
                 },
                 onDismiss = { showPackDialog = false },
                 onCreatePack = onCreatePack,
@@ -240,27 +324,39 @@ fun SetupScreen(
             )
         }
 
-        // BOTÓN INICIAR
         Button(
-            onClick = { if (selectedPack != null) onStartGame(playerNames, impostorCount, selectedPack!!, showCategory) },
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp).height(56.dp),
-            enabled = playerNames.size >= 3 && selectedPack != null,
+            onClick = {
+                if (selectedPacks.isNotEmpty()) {
+                    onStartGame(playerNames, impostorCount, selectedPacks, showCategory)
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(16.dp)
+                .height(56.dp),
+            enabled = playerNames.size >= 3 && selectedPacks.isNotEmpty(),
             shape = RoundedCornerShape(28.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, disabledContainerColor = Color(0xFF2E323D))
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AccentGreen,
+                disabledContainerColor = Color(0xFF2E323D)
+            )
         ) {
             Text("Iniciar Juego", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
-// --- DIÁLOGOS DE PAQUETES ---
+// =========================================================================
+//                  COMPONENTES AUXILIARES Y DIÁLOGOS
+// =========================================================================
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PackSelectionDialog(
     availablePacks: List<WordPack>,
-    currentPack: WordPack?,
-    onPackSelected: (WordPack) -> Unit,
+    selectedPacks: List<WordPack>,
+    onSelectionChanged: (List<WordPack>) -> Unit,
     onDismiss: () -> Unit,
     onCreatePack: (String) -> Unit,
     onDeletePack: (WordPack) -> Unit,
@@ -271,7 +367,16 @@ fun PackSelectionDialog(
     var packToEdit by remember { mutableStateOf<WordPack?>(null) }
     var packToDelete by remember { mutableStateOf<WordPack?>(null) }
 
-    // 1. CREAR PACK
+    fun toggleSelection(pack: WordPack) {
+        val newList = selectedPacks.toMutableList()
+        if (newList.any { it.id == pack.id }) {
+            newList.removeAll { it.id == pack.id }
+        } else {
+            newList.add(pack)
+        }
+        onSelectionChanged(newList)
+    }
+
     if (showCreateDialog) {
         InputSimpleDialog(
             title = "Nuevo Paquete",
@@ -281,7 +386,6 @@ fun PackSelectionDialog(
         )
     }
 
-    // 2. CONFIRMAR BORRAR PACK
     if (packToDelete != null) {
         AlertDialog(
             onDismissRequest = { packToDelete = null },
@@ -300,49 +404,81 @@ fun PackSelectionDialog(
         )
     }
 
-    // 3. DETALLE/EDICIÓN DEL PACK (VER Y AÑADIR PALABRAS)
     if (packToEdit != null) {
         PackDetailsDialog(
             pack = packToEdit!!,
-            onAddWord = { word, cat -> onAddWord(packToEdit!!, word, cat) },
-            onDeleteWord = { word -> onDeleteWord(packToEdit!!, word) },
+            onAddWord = { w, c -> onAddWord(packToEdit!!, w, c) },
+            onDeleteWord = { w -> onDeleteWord(packToEdit!!, w) },
             onDismiss = { packToEdit = null }
         )
     }
 
-    // LISTA PRINCIPAL
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkBackground,
         title = {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text("PAQUETES", color = TextWhite, fontWeight = FontWeight.Bold)
                 IconButton(onClick = { showCreateDialog = true }) {
                     Icon(Icons.Default.Add, null, tint = AccentGreen)
                 }
             }
         },
-        confirmButton = { },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Listo", color = AccentGreen, fontWeight = FontWeight.Bold)
+            }
+        },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 400.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.heightIn(max = 400.dp)
+            ) {
                 items(availablePacks) { pack ->
-                    val isSelected = pack.id == currentPack?.id
+                    // IMPORTANTE: Al ser selectedPacks un StateList, esto se recompone al cambiar
+                    val isSelected = selectedPacks.any { it.id == pack.id }
+
                     Card(
-                        modifier = Modifier.fillMaxWidth().clickable { onPackSelected(pack) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { toggleSelection(pack) },
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFF2C2F3F) else CardBackground),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) Color(0xFF2C2F3F) else CardBackground
+                        ),
                         border = if (isSelected) BorderStroke(2.dp, AccentGreen) else null
                     ) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                contentDescription = null,
+                                tint = if (isSelected) AccentGreen else TextGray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(pack.displayName, color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text("${pack.words.size} palabras", color = TextGray, fontSize = 12.sp)
+                                Text(
+                                    text = pack.displayName,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = "${pack.words.size} palabras",
+                                    color = TextGray,
+                                    fontSize = 12.sp
+                                )
                             }
-                            // EDITAR
                             IconButton(onClick = { packToEdit = pack }) {
                                 Icon(Icons.Default.Edit, null, tint = AccentBlue)
                             }
-                            // BORRAR
                             IconButton(onClick = { packToDelete = pack }) {
                                 Icon(Icons.Default.Delete, null, tint = AccentRed)
                             }
@@ -354,7 +490,6 @@ fun PackSelectionDialog(
     )
 }
 
-// --- DIÁLOGO DE DETALLES (VER LISTA DE PALABRAS) ---
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PackDetailsDialog(
@@ -364,8 +499,6 @@ fun PackDetailsDialog(
     onDismiss: () -> Unit
 ) {
     var showAddWordUI by remember { mutableStateOf(false) }
-
-    // Estado para añadir palabra nueva
     var newWord by remember { mutableStateOf("") }
     val categories = listOf("Objeto", "Individuo", "Lugar", "Organización", "Otro")
     var selectedCategory by remember { mutableStateOf(categories.first()) }
@@ -376,8 +509,6 @@ fun PackDetailsDialog(
         title = { Text(pack.displayName, color = TextWhite) },
         text = {
             Column(modifier = Modifier.heightIn(max = 500.dp)) {
-
-                // --- BOTÓN AÑADIR PALABRA ---
                 if (!showAddWordUI) {
                     Button(
                         onClick = { showAddWordUI = true },
@@ -389,7 +520,6 @@ fun PackDetailsDialog(
                         Text("Añadir Palabra")
                     }
                 } else {
-                    // --- FORMULARIO AÑADIR ---
                     Card(colors = CardDefaults.cardColors(containerColor = CardBackground)) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             OutlinedTextField(
@@ -397,8 +527,10 @@ fun PackDetailsDialog(
                                 onValueChange = { newWord = it },
                                 label = { Text("Nueva palabra") },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
-                                    focusedBorderColor = AccentGreen, unfocusedBorderColor = TextGray
+                                    focusedTextColor = TextWhite,
+                                    unfocusedTextColor = TextWhite,
+                                    focusedBorderColor = AccentGreen,
+                                    unfocusedBorderColor = TextGray
                                 ),
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
@@ -410,12 +542,20 @@ fun PackDetailsDialog(
                                         selected = (cat == selectedCategory),
                                         onClick = { selectedCategory = cat },
                                         label = { Text(cat) },
-                                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AccentBlue, selectedLabelColor = TextWhite)
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = AccentBlue,
+                                            selectedLabelColor = TextWhite
+                                        )
                                     )
                                 }
                             }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                TextButton(onClick = { showAddWordUI = false }) { Text("Cancelar", color = TextGray) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = { showAddWordUI = false }) {
+                                    Text("Cancelar", color = TextGray)
+                                }
                                 Button(
                                     onClick = {
                                         if (newWord.isNotBlank()) {
@@ -425,7 +565,9 @@ fun PackDetailsDialog(
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
-                                ) { Text("Guardar") }
+                                ) {
+                                    Text("Guardar")
+                                }
                             }
                         }
                     }
@@ -435,7 +577,6 @@ fun PackDetailsDialog(
                 HorizontalDivider(color = Color.Gray.copy(alpha = 0.5f))
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // --- LISTA DE PALABRAS EXISTENTES ---
                 if (pack.words.isEmpty()) {
                     Text("Paquete vacío", color = TextGray, modifier = Modifier.padding(16.dp))
                 } else {
@@ -446,7 +587,9 @@ fun PackDetailsDialog(
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
@@ -468,7 +611,9 @@ fun PackDetailsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cerrar", color = AccentBlue) }
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", color = AccentBlue)
+            }
         }
     )
 }
@@ -490,33 +635,79 @@ fun InputSimpleDialog(
                 value = text,
                 onValueChange = { text = it },
                 label = { Text(label) },
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite, focusedBorderColor = AccentGreen, unfocusedBorderColor = TextGray),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextWhite,
+                    unfocusedTextColor = TextWhite,
+                    focusedBorderColor = AccentGreen,
+                    unfocusedBorderColor = TextGray
+                ),
                 singleLine = true
             )
         },
         confirmButton = {
-            Button(onClick = { if(text.isNotBlank()) onConfirm(text) }, colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)) { Text("Crear", color = TextWhite) }
+            Button(
+                onClick = { if (text.isNotBlank()) onConfirm(text) },
+                colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+            ) {
+                Text("Crear", color = TextWhite)
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar", color = TextGray) }
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = TextGray)
+            }
         }
     )
 }
 
 @Composable
-fun SettingSectionCard(icon: Painter, iconTint: Color, title: String, value: String, showArrow: Boolean = false, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+fun SettingSectionCard(
+    icon: Painter,
+    iconTint: Color,
+    title: String,
+    value: String,
+    showArrow: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Icon(painter = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    painter = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(text = title, color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                if (value.isNotEmpty()) Text(text = value, color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                if (showArrow) { Spacer(modifier = Modifier.width(8.dp)); Text(">", color = TextGray, fontWeight = FontWeight.Bold) }
+                Text(
+                    text = title,
+                    color = TextWhite,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (value.isNotEmpty()) {
+                    Text(
+                        text = value,
+                        color = TextWhite,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+                if (showArrow) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(">", color = TextGray, fontWeight = FontWeight.Bold)
+                }
             }
             Spacer(modifier = Modifier.height(12.dp))
             content()
@@ -525,10 +716,27 @@ fun SettingSectionCard(icon: Painter, iconTint: Color, title: String, value: Str
 }
 
 @Composable
-fun CircularButton(icon: ImageVector, color: Color, enabled: Boolean, onClick: () -> Unit) {
+fun CircularButton(
+    icon: ImageVector,
+    color: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
     val backgroundColor = if (enabled) color else Color(0xFF2E323D)
     val iconColor = if (enabled) Color.Black else TextGray
-    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(32.dp).clip(CircleShape).background(backgroundColor)) {
-        Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(backgroundColor)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }

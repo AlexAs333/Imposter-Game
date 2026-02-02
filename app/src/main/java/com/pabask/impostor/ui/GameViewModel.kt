@@ -50,14 +50,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     // ----------------------------------------------
 
-    fun startGame(playerNames: List<String>, impostorCount: Int, pack: WordPack, showCategory: Boolean) {
-        // 1. GUARDAMOS CONFIGURACIÓN
-        saveLastConfig(playerNames, pack.id, showCategory)
+    fun startGame(playerNames: List<String>, impostorCount: Int, packs: List<WordPack>, showCategory: Boolean) {
+        // Obtenemos los IDs
+        val packIds = packs.map { it.id }
 
-        // 2. OBTENER PALABRA
-        // CAMBIO IMPORTANTE: Usamos 'pack.id' porque el repositorio ahora gestiona todo por ID
-        // Si devuelve null (pack vacío), ponemos textos de seguridad.
-        val wordInfo = repository.getSecretWord(pack.id) ?: ("Pack Vacío" to "Sin Categoría")
+        // Guardamos la configuración (IDs separados por coma)
+        saveLastConfig(playerNames, packIds.joinToString(","), showCategory)
+
+        // Pedimos palabra al repositorio usando la nueva función
+        val wordInfo = repository.getSecretWordFromPacks(packIds) ?: ("Pack Vacío" to "Sin Categoría")
 
         val secretWord = wordInfo.first
         val category = wordInfo.second
@@ -82,11 +83,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
+        // En el estado, currentPack ahora es solo visual, podemos coger el primero o crear uno "falso" que se llame "Mix"
+        // Para simplificar, mostramos el nombre del primero + "y otros" o "Varios"
+        val displayPack = if (packs.size == 1) packs.first() else WordPack("mix_temp", "Varios (${packs.size})", mutableListOf())
+
         _uiState.update {
             it.copy(
                 isGameStarted = true,
                 players = newPlayers,
-                currentPack = pack,
+                currentPack = displayPack,
                 startingPlayerName = starterName,
                 showCategory = showCategory
             )

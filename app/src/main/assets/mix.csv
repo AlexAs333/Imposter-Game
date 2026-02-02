@@ -1,0 +1,307 @@
+Aeropuerto; Lugar
+Biblioteca; Lugar
+Cementerio; Lugar
+Cine; Lugar
+Circo; Lugar
+Hospital; Lugar
+Cárcel; Lugar
+Supermercado; Lugar
+Restaurante; Lugar
+Escuela; Lugar
+Universidad; Lugar
+Playa; Lugar
+Montaña; Lugar
+Bosque; Lugar
+Desierto; Lugar
+Polo Norte; Lugar
+Isla; Lugar
+Castillo; Lugar
+Cueva; Lugar
+Granja; Lugar
+Zoológico; Lugar
+Museo; Lugar
+Teatro; Lugar
+Estadio; Lugar
+Gimnasio; Lugar
+Piscina; Lugar
+Parque de Atracciones; Lugar
+Casino; Lugar
+Hotel; Lugar
+Spa; Lugar
+Peluquería; Lugar
+Taller Mecánico; Lugar
+Gasolinera; Lugar
+Estación de Tren; Lugar
+Submarino; Lugar
+Avión; Lugar
+Crucero; Lugar
+Comisaría; Lugar
+Bomberos; Lugar
+Iglesia; Lugar
+Mezquita; Lugar
+Sinagoga; Lugar
+Cementerio de Elefantes; Lugar
+Triángulo de las Bermudas; Lugar
+Discoteca; Lugar
+Bar; Lugar
+Sauna; Lugar
+Baño Público; Lugar
+España;  Lugar
+Italia;  Lugar
+Francia;  Lugar
+Alemania;  Lugar
+Japón;  Lugar
+China;  Lugar
+Estados Unidos;  Lugar
+Reino Unido;  Lugar
+México;  Lugar
+Brasil;  Lugar
+Albert Einstein; Individuo
+Marilyn Monroe; Individuo
+Michael Jackson; Individuo
+Cristiano Ronaldo; Individuo
+Lionel Messi; Individuo
+Donald Trump; Individuo
+Barack Obama; Individuo
+Reina Isabel II; Individuo
+Jesucristo; Individuo
+Napoleón; Individuo
+Julio César; Individuo
+Cleopatra; Individuo
+Cristóbal Colón; Individuo
+Steve Jobs; Individuo
+Elon Musk; Individuo
+Bill Gates; Individuo
+Mark Zuckerberg; Individuo
+Pablo Picasso; Individuo
+Leonardo da Vinci; Individuo
+Vincent van Gogh; Individuo
+Frida Kahlo; Individuo
+Elvis Presley; Individuo
+Freddie Mercury; Individuo
+Shakira; Individuo
+Madonna; Individuo
+Beyoncé; Individuo
+Will Smith; Individuo
+Brad Pitt; Individuo
+Angelina Jolie; Individuo
+Johnny Depp; Individuo
+Nelson Mandela; Individuo
+Gandhi; Individuo
+Martin Luther King; Individuo
+Madre Teresa; Individuo
+Rafael Nadal; Individuo
+Michael Jordan; Individuo
+Muhammad Ali; Individuo
+Usain Bolt; Individuo
+Miguel de Cervantes; Individuo
+William Shakespeare; Individuo
+Walt Disney; Individuo
+Isaac Newton; Individuo
+Marie Curie; Individuo
+Rafael Nadal;  Individuo
+Charles Darwin; Individuo
+Beethoven; Individuo
+Mozart; Individuo
+Médico; Individuo
+Enfermero; Individuo
+Bombero; Individuo
+Policía; Individuo
+Ladrón; Individuo
+Juez; Individuo
+Abogado; Individuo
+Profesor; Individuo
+Alumno; Individuo
+Científico; Individuo
+Astronauta; Individuo
+Piloto; Individuo
+Azafata; Individuo
+Cocinero; Individuo
+Camarero; Individuo
+Panadero; Individuo
+Carnicero; Individuo
+Pescador; Individuo
+Agricultor; Individuo
+Militar; Individuo
+Espía; Individuo
+Detective; Individuo
+Mimo; Individuo
+Payaso; Individuo
+Mago; Individuo
+Actor; Individuo
+Cantante; Individuo
+Pintor; Individuo
+Escritor; Individuo
+Periodista; Individuo
+Fotógrafo; Individuo
+Youtuber; Individuo
+Influencer; Individuo
+Hacker; Individuo
+Programador; Individuo
+Robot; Individuo
+Alienígena; Individuo
+Zombi; Individuo
+Vampiro; Individuo
+Fantasma; Individuo
+Superhéroe; Individuo
+Villano; Individuo
+Rey; Individuo
+Reina; Individuo
+Princesa; Individuo
+Caballero; Individuo
+Ninja; Individuo
+Samurái; Individuo
+Vikingo; Individuo
+Pirata; Individuo
+Perro; Animal
+Gato; Animal
+León; Animal
+Tigre; Animal
+Elefante; Animal
+Jirafa; Animal
+Mono; Animal
+Gorila; Animal
+Oso; Animal
+Panda; Animal
+Lobo; Animal
+Zorro; Animal
+Conejo; Animal
+Ratón; Animal
+Caballo; Animal
+Vaca; Animal
+Cerdo; Animal
+Oveja; Animal
+Cabra; Animal
+Gallina; Animal
+Pato; Animal
+Águila; Animal
+Búho; Animal
+Pingüino; Animal
+Loro; Animal
+Serpiente; Animal
+Cocodrilo; Animal
+Tortuga; Animal
+Rana; Animal
+Tiburón; Animal
+Delfín; Animal
+Ballena; Animal
+Pulpo; Animal
+Cangrejo; Animal
+Araña; Animal
+Abeja; Animal
+Hormiga; Animal
+Mariposa; Animal
+Dragón; Animal
+Dinosaurio; Animal
+Canguro; Animal
+Koala; Animal
+Murciélago; Animal
+Camaleón; Animal
+Teléfono; Objeto
+Ordenador; Objeto
+Tablet; Objeto
+Televisión; Objeto
+Cámara; Objeto
+Reloj; Objeto
+Gafas; Objeto
+Llaves; Objeto
+Cartera; Objeto
+Moneda; Objeto
+Billete; Objeto
+Tarjeta de Crédito; Objeto
+Pasaporte; Objeto
+Mapa; Objeto
+Brújula; Objeto
+Mochila; Objeto
+Maleta; Objeto
+Paraguas; Objeto
+Sombrero; Objeto
+Zapatos; Objeto
+Calcetines; Objeto
+Ropa Interior; Objeto
+Vestido; Objeto
+Traje; Objeto
+Corbata; Objeto
+Anillo; Objeto
+Collar; Objeto
+Pendientes; Objeto
+Maquillaje; Objeto
+Perfume; Objeto
+Cepillo de Dientes; Objeto
+Papel Higiénico; Objeto
+Toalla; Objeto
+Jabón; Objeto
+Champú; Objeto
+Cuchillo; Objeto
+Tenedor; Objeto
+Cuchara; Objeto
+Plato; Objeto
+Vaso; Objeto
+Botella; Objeto
+Sartén; Objeto
+Olla; Objeto
+Microondas; Objeto
+Nevera; Objeto
+Lavadora; Objeto
+Coche; Objeto
+Bicicleta; Objeto
+Moto; Objeto
+Barco; Objeto
+Google; Organización
+Apple; Organización
+Microsoft; Organización
+Amazon; Organización
+Facebook; Organización
+Coca-Cola; Organización
+McDonald's; Organización
+Burger King; Organización
+Nike; Organización
+Adidas; Organización
+Disney; Organización
+Netflix; Organización
+NASA; Organización
+CIA; Organización
+FBI; Organización
+ONU; Organización
+Cruz Roja; Organización
+Greenpeace; Organización
+IKEA; Organización
+Lego; Organización
+Marvel; Organización
+DC Comics; Organización
+FIFA; Organización
+Juegos Olímpicos; Organización
+Real Madrid; Organización
+FC Barcelona; Organización
+Hogwarts; Organización
+La Mafia; Organización
+El Vaticano; Organización
+Los Vengadores; Organización
+Boda; Otro
+Funeral; Otro
+Cumpleaños; Otro
+Navidad; Otro
+Halloween; Otro
+San Valentín; Otro
+Carnaval; Otro
+Año Nuevo; Otro
+Vacaciones; Otro
+Examen; Otro
+Entrevista; Otro
+Divorcio; Otro
+Juicio; Otro
+Guerra; Otro
+Paz; Otro
+Amor; Otro
+Odio; Otro
+Hambre; Otro
+Sed; Otro
+Sueño; Otro
+Pesadilla; Otro
+Muerte; Otro
+Vida; Otro
+Internet; Otro
+Redes Sociales; Otro
+Apocalipsis; Otro
+Terremoto; Otro
+Tsunami; Otro

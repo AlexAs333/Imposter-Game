@@ -58,8 +58,8 @@ class MainActivity : ComponentActivity() {
                             initialShowCategory = viewModel.getSavedShowCategory(),
 
                             // 1. INICIAR JUEGO
-                            onStartGame = { names, impostors, pack, showCat ->
-                                viewModel.startGame(names, impostors, pack, showCat)
+                            onStartGame = { names, impostors, packs, showCat ->
+                                viewModel.startGame(names, impostors, packs, showCat)
                             },
 
                             // 2. CREAR Y AÑADIR
