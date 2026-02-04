@@ -59,7 +59,7 @@ fun SetupScreen(
     initialPlayers: List<String>,
     initialPackId: String?,
     initialShowCategory: Boolean,
-    onStartGame: (List<String>, Int, List<WordPack>, Boolean) -> Unit,
+    onStartGame: (List<String>, Int, List<WordPack>, Boolean, Boolean) -> Unit,
     onCreatePack: (String) -> Unit,
     onAddWord: (WordPack, String, String) -> Unit,
     onDeletePack: (WordPack) -> Unit,
@@ -98,6 +98,7 @@ fun SetupScreen(
 
     // --- ESTADOS LOCALES ---
     var showCategory by remember { mutableStateOf(initialShowCategory) }
+    var useQrMode by remember { mutableStateOf(false)}
     var showPackDialog by remember { mutableStateOf(false) }
     var tempName by remember { mutableStateOf("") }
     val playerNames = remember { mutableStateListOf<String>().apply { addAll(initialPlayers) } }
@@ -302,6 +303,24 @@ fun SetupScreen(
                         )
                     )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // OPCIÓN 2: MODO QR (NUEVO)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Modo Escáner QR", color = TextWhite, fontSize = 16.sp)
+                        Text("Usa tu propio móvil", color = TextGray, fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = useQrMode,
+                        onCheckedChange = { useQrMode = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = TextWhite, checkedTrackColor = AccentBlue) // Azul para diferenciar
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(100.dp))
         }
@@ -327,7 +346,7 @@ fun SetupScreen(
         Button(
             onClick = {
                 if (selectedPacks.isNotEmpty()) {
-                    onStartGame(playerNames, impostorCount, selectedPacks, showCategory)
+                    onStartGame(playerNames, impostorCount, selectedPacks, showCategory, useQrMode)
                 }
             },
             modifier = Modifier

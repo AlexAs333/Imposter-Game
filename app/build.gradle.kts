@@ -65,7 +65,7 @@ dependencies {
     // Iconos extendidos (Iconos de persona, cruz, etc.)
     // El BOM también suele controlar esto, pero si falla ponle versión
     implementation("androidx.compose.material:material-icons-extended")
-
+    implementation("com.google.zxing:core:3.5.2")
     // --- TESTING (Déjalas como estén o usa estas) ---
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
