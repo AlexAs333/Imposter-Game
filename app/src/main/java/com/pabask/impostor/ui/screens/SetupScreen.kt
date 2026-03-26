@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -34,11 +35,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pabask.impostor.R
 import com.pabask.impostor.model.WordPack
+import org.burnoutcrew.reorderable.ReorderableItem
+import org.burnoutcrew.reorderable.detectReorderAfterLongPress
+import org.burnoutcrew.reorderable.rememberReorderableLazyListState
+import org.burnoutcrew.reorderable.reorderable
 import kotlin.math.max
 
 // --- PALETA DE COLORES ---
@@ -59,48 +63,55 @@ fun SetupScreen(
     initialPlayers: List<String>,
     initialPackId: String?,
     initialShowCategory: Boolean,
-    onStartGame: (List<String>, Int, List<WordPack>, Boolean) -> Unit,
+    onStartGame: (List<String>, Int, List<WordPack>, Boolean, Boolean) -> Unit,
     onCreatePack: (String) -> Unit,
     onAddWord: (WordPack, String, String) -> Unit,
     onDeletePack: (WordPack) -> Unit,
     onDeleteWord: (WordPack, String) -> Unit
 ) {
-    // --- GESTIÓN DE SELECCIÓN (CORREGIDO) ---
-    // 1. Usamos mutableStateListOf para que Compose detecte cambios internos (add/remove)
+    // 1. ESTADOS PRINCIPALES (Deben ir primero)
+    val playerNames = remember { mutableStateListOf<String>().apply { addAll(initialPlayers) } }
+
+    // 2. GESTIÓN DE SELECCIÓN DE PACKS
     val selectedPacks = remember { mutableStateListOf<WordPack>() }
 
-    // 2. Inicializamos la lista UNA VEZ al entrar
+    // 3. ESTADO DRAG & DROP (Ahora sí conoce a 'playerNames')
+    val reorderState = rememberReorderableLazyListState(onMove = { from, to ->
+        val list = playerNames.toMutableList()
+        val item = list.removeAt(from.index)
+        list.add(to.index, item)
+        // Actualizamos la lista observable
+        playerNames.clear()
+        playerNames.addAll(list)
+    })
+
+    // INICIALIZACIÓN DE PACKS
     LaunchedEffect(Unit) {
         val savedIds = initialPackId?.split(",") ?: emptyList()
         if (savedIds.isNotEmpty()) {
             val packsToSelect = availablePacks.filter { savedIds.contains(it.id) }
             selectedPacks.addAll(packsToSelect)
         } else {
-            // Si no hay nada guardado, seleccionamos el primero por defecto
             availablePacks.firstOrNull()?.let { selectedPacks.add(it) }
         }
     }
 
-    // 3. Sincronizamos si availablePacks cambia (ej: borras un pack)
     LaunchedEffect(availablePacks) {
         val validPacks = selectedPacks.filter { p -> availablePacks.any { it.id == p.id } }
-
-        // Solo actualizamos si hay discrepancia para evitar bucles
         if (validPacks.size != selectedPacks.size) {
             selectedPacks.clear()
             selectedPacks.addAll(validPacks)
         }
-
         if (selectedPacks.isEmpty() && availablePacks.isNotEmpty()) {
             selectedPacks.add(availablePacks.first())
         }
     }
 
-    // --- ESTADOS LOCALES ---
+    // OTROS ESTADOS
     var showCategory by remember { mutableStateOf(initialShowCategory) }
+    var useQrMode by remember { mutableStateOf(false)}
     var showPackDialog by remember { mutableStateOf(false) }
     var tempName by remember { mutableStateOf("") }
-    val playerNames = remember { mutableStateListOf<String>().apply { addAll(initialPlayers) } }
 
     val isDuplicate = remember(tempName, playerNames.toList()) {
         tempName.isNotBlank() && playerNames.any { it.equals(tempName.trim(), ignoreCase = true) }
@@ -123,7 +134,7 @@ fun SetupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState()), // Scroll general de la pantalla
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // --- HEADER ---
@@ -141,13 +152,14 @@ fun SetupScreen(
             }
             Spacer(modifier = Modifier.height(32.dp))
 
-            // --- JUGADORES ---
+            // --- JUGADORES (MODIFICADO CON DRAG & DROP) ---
             SettingSectionCard(
                 icon = rememberVectorPainter(Icons.Default.Group),
                 iconTint = AccentBlue,
                 title = "Jugadores",
                 value = "${playerNames.size}/$MAX_PLAYERS"
             ) {
+                // 1. INPUT PARA AÑADIR JUGADOR
                 OutlinedTextField(
                     value = tempName,
                     onValueChange = { tempName = it },
@@ -198,27 +210,86 @@ fun SetupScreen(
                     }
                 )
 
-                if (!isDuplicate) Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // 2. LISTA REORDENABLE (DRAG & DROP)
+                // Importante: heightIn para que no choque con el ScrollView padre
+                LazyColumn(
+                    state = reorderState.listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp) // Altura máxima, si hay más hace scroll interno
+                        .reorderable(reorderState),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    playerNames.forEach { name ->
-                        AssistChip(
-                            onClick = { playerNames.remove(name) },
-                            label = { Text(name, color = TextWhite) },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = TextGray
+                    items(playerNames, key = { it }) { item ->
+                        ReorderableItem(reorderableState = reorderState, key = item) { isDragging ->
+
+                            val elevation = if (isDragging) 8.dp else 0.dp
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .detectReorderAfterLongPress(reorderState), // ARRASTRAR DESDE CUALQUIER PUNTO
+                                shape = RoundedCornerShape(12.dp),
+                                elevation = CardDefaults.cardElevation(elevation),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isDragging) CardBackground.copy(alpha = 0.8f) else Color(0xFF2C2F3F)
                                 )
-                            },
-                            colors = AssistChipDefaults.assistChipColors(containerColor = Color(0xFF2C2F3F)),
-                            border = null
-                        )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Icono Drag (Visual)
+                                    Icon(
+                                        imageVector = Icons.Default.DragHandle,
+                                        contentDescription = "Mover",
+                                        tint = TextGray,
+                                        modifier = Modifier.padding(start = 8.dp, end = 12.dp)
+                                    )
+
+                                    // Nombre (Editable)
+                                    val index = playerNames.indexOf(item)
+                                    if (index >= 0) {
+                                        OutlinedTextField(
+                                            value = item,
+                                            onValueChange = { newName ->
+                                                playerNames[index] = newName
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true,
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent,
+                                                focusedBorderColor = Color.Transparent,
+                                                unfocusedBorderColor = Color.Transparent,
+                                                focusedTextColor = TextWhite,
+                                                unfocusedTextColor = TextWhite
+                                            )
+                                        )
+                                    }
+
+                                    // Botón Borrar
+                                    IconButton(
+                                        onClick = {
+                                            if (playerNames.size > 3 && index >= 0) {
+                                                playerNames.removeAt(index)
+                                            }
+                                        },
+                                        enabled = playerNames.size > 3
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Borrar",
+                                            tint = if (playerNames.size > 3) AccentRed else TextGray.copy(0.3f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -302,6 +373,24 @@ fun SetupScreen(
                         )
                     )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // OPCIÓN 2: MODO QR
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Modo Escáner QR", color = TextWhite, fontSize = 16.sp)
+                        Text("Usa tu propio móvil", color = TextGray, fontSize = 12.sp)
+                    }
+                    Switch(
+                        checked = useQrMode,
+                        onCheckedChange = { useQrMode = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = TextWhite, checkedTrackColor = AccentBlue)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(100.dp))
         }
@@ -312,7 +401,6 @@ fun SetupScreen(
                 availablePacks = availablePacks,
                 selectedPacks = selectedPacks,
                 onSelectionChanged = { updatedList ->
-                    // Al ser mutableStateListOf, limpiar y añadir dispara la animación del tick al instante
                     selectedPacks.clear()
                     selectedPacks.addAll(updatedList)
                 },
@@ -327,7 +415,7 @@ fun SetupScreen(
         Button(
             onClick = {
                 if (selectedPacks.isNotEmpty()) {
-                    onStartGame(playerNames, impostorCount, selectedPacks, showCategory)
+                    onStartGame(playerNames, impostorCount, selectedPacks, showCategory, useQrMode)
                 }
             },
             modifier = Modifier
@@ -439,7 +527,6 @@ fun PackSelectionDialog(
                 modifier = Modifier.heightIn(max = 400.dp)
             ) {
                 items(availablePacks) { pack ->
-                    // IMPORTANTE: Al ser selectedPacks un StateList, esto se recompone al cambiar
                     val isSelected = selectedPacks.any { it.id == pack.id }
 
                     Card(

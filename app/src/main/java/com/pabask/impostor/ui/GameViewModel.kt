@@ -16,7 +16,8 @@ data class GameUiState(
     val players: List<Player> = emptyList(),
     val currentPack: WordPack? = null,
     val startingPlayerName: String = "",
-    val showCategory: Boolean = false
+    val showCategory: Boolean = false,
+    val isQrMode: Boolean = false
 )
 
 enum class GameWinner { NONE, CIVILIANS, IMPOSTORS }
@@ -50,7 +51,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     // ----------------------------------------------
 
-    fun startGame(playerNames: List<String>, impostorCount: Int, packs: List<WordPack>, showCategory: Boolean) {
+    fun startGame(playerNames: List<String>, impostorCount: Int, packs: List<WordPack>, showCategory: Boolean, isQrMode: Boolean){
         // Obtenemos los IDs
         val packIds = packs.map { it.id }
 
@@ -93,7 +94,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 players = newPlayers,
                 currentPack = displayPack,
                 startingPlayerName = starterName,
-                showCategory = showCategory
+                showCategory = showCategory,
+                isQrMode = isQrMode
             )
         }
     }

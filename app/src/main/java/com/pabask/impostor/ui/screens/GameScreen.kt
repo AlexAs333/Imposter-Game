@@ -1,6 +1,10 @@
 package com.pabask.impostor.ui.screens
 
+import android.graphics.Bitmap
+import android.util.Base64
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -19,10 +23,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -33,10 +38,11 @@ import androidx.compose.ui.unit.sp
 import com.pabask.impostor.model.Role
 import com.pabask.impostor.ui.GameViewModel
 import com.pabask.impostor.ui.GameWinner
+import com.pabask.impostor.utils.QrCodeUtils
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-// --- PALETA DE COLORES ---
+// COLORES
 private val DarkBackground = Color(0xFF0F111A)
 private val CardBackground = Color(0xFF1E202B)
 private val AccentGreen = Color(0xFF00C853)
@@ -45,307 +51,265 @@ private val AccentBlue = Color(0xFF448AFF)
 private val TextWhite = Color(0xFFFFFFFF)
 private val TextGray = Color(0xFFAAAAAA)
 
+// --- ¡CAMBIA ESTO POR TU URL DE GITHUB PAGES! ---
+private const val WEB_URL_BASE = "https://pabask.github.io/impostor-web/"
+
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val players = uiState.players
     val startingPlayerName = uiState.startingPlayerName
     val showCategory = uiState.showCategory
+    val isQrMode = uiState.isQrMode // <--- LEEMOS EL MODO
 
     var currentPlayerIndex by remember { mutableIntStateOf(0) }
+    var showNextButton by remember { mutableStateOf(false) } // Para modo clásico
 
-    // Controla si el botón de siguiente debe aparecer
-    var showNextButton by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkBackground)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
         if (currentPlayerIndex >= players.size) {
-            VotingPhase(
-                players = players,
-                startingPlayerName = startingPlayerName,
-                viewModel = viewModel,
-                onRestart = { viewModel.stopGame() }
-            )
+            VotingPhase(players, startingPlayerName, viewModel) { viewModel.stopGame() }
         } else {
             val currentPlayer = players[currentPlayerIndex]
 
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
+                modifier = Modifier.fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 // HEADER
                 Text(
                     text = "TURNO ${currentPlayerIndex + 1}/${players.size}",
-                    color = TextGray,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
+                    color = TextGray, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp
                 )
-
                 Spacer(modifier = Modifier.height(36.dp))
 
-                // Usamos 'key' para reiniciar el estado de la carta al cambiar de jugador
-                key(currentPlayerIndex) {
-                    PeekCardContainer(
-                        onPeekThresholdReached = {
-                            // Solo activamos el botón si no estaba activo ya
-                            if (!showNextButton) showNextButton = true
-                        },
-
-                        // 1. CARTA DE FONDO (EL SECRETO)
-                        secretContent = {
-                            val cardColor = if (currentPlayer.role == Role.IMPOSTOR) AccentRed else AccentBlue
-
-                            Card(
-                                modifier = Modifier.fillMaxSize(),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.cardColors(containerColor = cardColor, contentColor = TextWhite)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    // CATEGORÍA (Si está activada)
-                                    if (showCategory && currentPlayer.category.isNotBlank()) {
-                                        Text(
-                                            text = currentPlayer.category.uppercase(),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = TextWhite.copy(alpha = 0.8f),
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 1.sp,
-                                            modifier = Modifier
-                                                .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                    }
-
-                                    Text(
-                                        "TU PALABRA ES:",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        letterSpacing = 2.sp,
-                                        color = TextWhite.copy(alpha = 0.8f),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(24.dp))
-
-                                    // TEXTO GIGANTE
-                                    Text(
-                                        currentPlayer.secretWord.uppercase(),
-                                        style = MaterialTheme.typography.displayMedium,
-                                        fontWeight = FontWeight.Black,
-                                        textAlign = TextAlign.Center,
-                                        color = TextWhite
-                                    )
-
-                                    Spacer(modifier = Modifier.height(24.dp))
-                                    val roleText = if (currentPlayer.role == Role.IMPOSTOR)
-                                        "Eres el IMPOSTOR" else "Eres CIVIL"
-                                    Text(
-                                        roleText,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextWhite.copy(alpha = 0.9f)
-                                    )
-                                }
+                // --- DECISIÓN DE MODO ---
+                if (isQrMode) {
+                    // MODO QR
+                    QrDisplayCard(
+                        player = currentPlayer,
+                        onNext = { currentPlayerIndex++ }
+                    )
+                } else {
+                    // MODO CLÁSICO (Peek & Pass)
+                    key(currentPlayerIndex) {
+                        PeekCardContainer(
+                            onPeekThresholdReached = { if (!showNextButton) showNextButton = true },
+                            secretContent = {
+                                SecretCardContent(currentPlayer, showCategory)
+                            },
+                            coverContent = {
+                                CoverCardContent(currentPlayer.name)
                             }
-                        },
+                        )
+                    }
 
-                        // 2. TAPA (ARRIBA)
-                        coverContent = {
-                            Card(
-                                modifier = Modifier.fillMaxSize(),
-                                shape = RoundedCornerShape(24.dp),
-                                elevation = CardDefaults.cardElevation(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = CardBackground, contentColor = TextWhite)
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.VisibilityOff,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(80.dp),
-                                        tint = TextGray.copy(alpha = 0.5f)
-                                    )
-                                    Spacer(modifier = Modifier.height(32.dp))
-                                    Text(
-                                        "Pásale el móvil a:",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = TextGray
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        currentPlayer.name,
-                                        style = MaterialTheme.typography.displayLarge,
-                                        fontWeight = FontWeight.Black,
-                                        textAlign = TextAlign.Center,
-                                        color = TextWhite
-                                    )
-                                    Spacer(modifier = Modifier.height(64.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                                    // Indicador "Levanta para ver"
-                                    PeekIndicator()
-                                }
-                            }
-                        }
-                    )
-                }
+                    // Botón para modo clásico
+                    Button(
+                        onClick = { showNextButton = false; currentPlayerIndex++ },
+                        modifier = Modifier.fillMaxWidth().height(56.dp).alpha(if (showNextButton) 1f else 0f),
+                        enabled = showNextButton,
+                        shape = RoundedCornerShape(28.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = TextWhite)
+                    ) {
+                        Text("TERMINAR TURNO", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
 
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // BOTÓN DE SIGUIENTE (Solo aparece si ya has mirado la carta)
-                Button(
-                    onClick = {
-                        showNextButton = false
-                        currentPlayerIndex++
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .alpha(if (showNextButton) 1f else 0f), // Fade in/out
-                    enabled = showNextButton,
-                    shape = RoundedCornerShape(28.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentGreen,
-                        contentColor = TextWhite
-                    )
-                ) {
-                    Text(
-                        text = "TERMINAR TURNO",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                if (!showNextButton) {
-                    Text(
-                        "Mantén pulsado y desliza hacia arriba para mirar.",
-                        color = TextGray.copy(alpha = 0.6f),
-                        textAlign = TextAlign.Center,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
+                    if (!showNextButton) {
+                        Text("Desliza para mirar. Suelta para ocultar.", color = TextGray.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp))
+                    }
                 }
             }
         }
     }
 }
 
-// --- LÓGICA DE GESTO "PEEK" ---
+// --- COMPONENTE CARTA QR ---
 @Composable
-fun PeekCardContainer(
-    onPeekThresholdReached: () -> Unit,
-    coverContent: @Composable () -> Unit,
-    secretContent: @Composable () -> Unit
-) {
+fun QrDisplayCard(player: com.pabask.impostor.model.Player, onNext: () -> Unit) {
+    // 1. Generamos el QR (Igual que antes)
+    val qrBitmap = remember(player) {
+        val rawData = "${player.secretWord}|${player.role}|${player.category}"
+        val encodedData = Base64.encodeToString(rawData.toByteArray(), Base64.NO_WRAP or Base64.URL_SAFE)
+        val finalUrl = "$WEB_URL_BASE?d=$encodedData"
+        QrCodeUtils.generateQrBitmap(finalUrl)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // --- TARJETA PRINCIPAL ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            // Fondo oscuro para que pegue con la app
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            // Borde azul neón para rollo tecnológico
+            border = BorderStroke(2.dp, AccentBlue),
+            elevation = CardDefaults.cardElevation(8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(vertical = 32.dp, horizontal = 16.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Título del Jugador
+                Icon(Icons.Default.Person, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(32.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = player.name.uppercase(),
+                    color = TextWhite,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 28.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "ESCANEA PARA DESCODIFICAR",
+                    color = TextGray,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- EL QR (ENMARCADO) ---
+                // Usamos una caja blanca redondeada para que el QR se lea bien
+                // pero no ocupe toda la pantalla
+                Box(
+                    modifier = Modifier
+                        .size(260.dp) // Tamaño fijo cuadrado
+                        .background(Color.White, RoundedCornerShape(16.dp))
+                        .padding(12.dp), // Margen interno
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (qrBitmap != null) {
+                        Image(
+                            bitmap = qrBitmap.asImageBitmap(),
+                            contentDescription = "QR Code",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                    } else {
+                        // Por si falla, que no se vea vacío
+                        CircularProgressIndicator(color = Color.Black)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // --- BOTÓN SIGUIENTE ---
+        Button(
+            onClick = onNext,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AccentGreen, // Verde para indicar "Listo"
+                contentColor = TextWhite
+            ),
+            elevation = ButtonDefaults.buttonElevation(8.dp)
+        ) {
+            Icon(Icons.Default.CheckCircle, null)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                "SIGUIENTE JUGADOR",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+        }
+    }
+}
+
+// --- COMPONENTES VISUALES CARTA CLÁSICA ---
+@Composable
+fun SecretCardContent(player: com.pabask.impostor.model.Player, showCategory: Boolean) {
+    val cardColor = if (player.role == Role.IMPOSTOR) AccentRed else AccentBlue
+    Card(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = cardColor, contentColor = TextWhite)) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            if (showCategory && player.category.isNotBlank()) {
+                Text(player.category.uppercase(), style = MaterialTheme.typography.labelMedium, modifier = Modifier.background(Color.Black.copy(0.2f), RoundedCornerShape(8.dp)).padding(12.dp, 4.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            Text("TU PALABRA ES:", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(player.secretWord.uppercase(), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(if (player.role == Role.IMPOSTOR) "Eres el IMPOSTOR" else "Eres CIVIL", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun CoverCardContent(playerName: String) {
+    Card(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(10.dp), colors = CardDefaults.cardColors(containerColor = CardBackground, contentColor = TextWhite)) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Icon(Icons.Default.VisibilityOff, null, modifier = Modifier.size(80.dp), tint = TextGray.copy(0.5f))
+            Spacer(modifier = Modifier.height(32.dp))
+            Text("Pásale el móvil a:", style = MaterialTheme.typography.titleMedium, color = TextGray)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(playerName, style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(64.dp))
+            PeekIndicator()
+        }
+    }
+}
+
+// --- LOGICA ANIMACIÓN PEEK ---
+@Composable
+fun PeekCardContainer(onPeekThresholdReached: () -> Unit, coverContent: @Composable () -> Unit, secretContent: @Composable () -> Unit) {
     val offsetY = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
-
-    // Umbral para considerar que la carta ha sido "leída"
     val peekThresholdPx = with(density) { 180.dp.toPx() }
-
     var hapticTriggered by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(420.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        // 1. FONDO
-        Box(modifier = Modifier.matchParentSize()) {
-            secretContent()
-        }
-
-        // 2. TAPA MÓVIL
+    Box(modifier = Modifier.fillMaxWidth().height(420.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.matchParentSize()) { secretContent() }
         Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset { IntOffset(0, offsetY.value.roundToInt()) }
+            modifier = Modifier.matchParentSize().offset { IntOffset(0, offsetY.value.roundToInt()) }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
-                        onDragEnd = {
-                            scope.launch {
-                                // REBOTE MÁS LEVE (LowBouncy)
-                                offsetY.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioLowBouncy,
-                                        stiffness = Spring.StiffnessLow
-                                    )
-                                )
-                                hapticTriggered = false
-                            }
-                        },
+                        onDragEnd = { scope.launch { offsetY.animateTo(0f, spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow)); hapticTriggered = false } },
                         onVerticalDrag = { change, dragAmount ->
                             change.consume()
                             scope.launch {
                                 val newOffset = (offsetY.value + dragAmount).coerceAtMost(0f)
                                 offsetY.snapTo(newOffset)
-
-                                if (newOffset < -peekThresholdPx && !hapticTriggered) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    hapticTriggered = true
-                                    onPeekThresholdReached()
-                                }
+                                if (newOffset < -peekThresholdPx && !hapticTriggered) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); hapticTriggered = true; onPeekThresholdReached() }
                             }
                         }
                     )
                 }
-        ) {
-            coverContent()
-        }
+        ) { coverContent() }
     }
 }
 
 @Composable
 fun PeekIndicator() {
     val infiniteTransition = rememberInfiniteTransition(label = "peek")
-    val dy by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = EaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ), label = "peekMove"
-    )
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.graphicsLayer { translationY = dy }
-    ) {
-        Icon(
-            imageVector = Icons.Default.Visibility,
-            contentDescription = null,
-            tint = AccentGreen,
-            modifier = Modifier.size(24.dp)
-        )
+    val dy by infiniteTransition.animateFloat(0f, -15f, infiniteRepeatable(tween(1200, easing = EaseInOut), RepeatMode.Reverse), label = "peekMove")
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.graphicsLayer { translationY = dy }) {
+        Icon(Icons.Default.Visibility, null, tint = AccentGreen, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "MIRAR",
-            color = AccentGreen,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
-        )
+        Text("MIRAR", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
 
-// --- FASES DE VOTACIÓN ---
+// --- VOTACIÓN Y GAME OVER (IGUAL QUE ANTES) ---
+// Mantén tus funciones VotingPhase y GameOverScreen aquí abajo.
+// Si no las tienes a mano, dímelo y te las copio de nuevo, pero son idénticas a la versión anterior.
 @Composable
 fun VotingPhase(
     players: List<com.pabask.impostor.model.Player>,
